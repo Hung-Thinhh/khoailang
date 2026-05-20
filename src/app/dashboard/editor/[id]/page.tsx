@@ -54,31 +54,77 @@ for(let i=0;i<20;i++){const d=document.createElement('div');d.className='dot';d.
 
 export default function EditorPage() {
   const params = useParams();
-  const templateId = Number(params.id);
-  const initialHtml = TEMPLATE_HTML[templateId] || DEFAULT_HTML;
+  const subdomainId = Number(params.id);
   
-  const [code, setCode] = useState(initialHtml);
+  const [code, setCode] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
-  const [lastSaved, setLastSaved] = useState("Tự nhật sau 0:46");
+  const [lastSaved, setLastSaved] = useState("");
   const [viewMode, setViewMode] = useState<"split" | "code" | "preview">("split");
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const subdomain = typeof window !== "undefined" ? localStorage.getItem("editor_subdomain") || "myass1" : "myass1";
-  const lineCount = code.split("\n").length;
+  const [subdomain, setSubdomain] = useState("loading");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const header = document.getElementById("header");
     const footer = document.querySelector("footer.footer");
     if (header) header.style.display = "none";
     if (footer) (footer as HTMLElement).style.display = "none";
+
+    // Load subdomain data from DB
+    async function loadData() {
+      const res = await fetch(`/api/subdomains/${subdomainId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCode(data.html_content || DEFAULT_HTML);
+        setStatus(data.status || "draft");
+        setSubdomain(data.name || "subdomain");
+      } else {
+        // Fallback: try loading from template
+        const templateHtml = TEMPLATE_HTML[subdomainId];
+        if (templateHtml) setCode(templateHtml);
+        else setCode(DEFAULT_HTML);
+        setSubdomain(localStorage.getItem("editor_subdomain") || "subdomain");
+      }
+    }
+    loadData();
+
     return () => {
       if (header) header.style.display = "";
       if (footer) (footer as HTMLElement).style.display = "";
     };
-  }, []);
+  }, [subdomainId]);
 
-  const handlePublish = () => {
-    setStatus("published");
-    alert("✅ Đã publish thành công! Trang của bạn đã được xuất bản.");
+  const lineCount = code.split("\n").length;
+
+  const handlePublish = async () => {
+    setSaving(true);
+    const res = await fetch(`/api/subdomains/${subdomainId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html_content: code, status: "published" }),
+    });
+    if (res.ok) {
+      setStatus("published");
+      setLastSaved("Đã lưu " + new Date().toLocaleTimeString("vi-VN"));
+      alert("✅ Đã publish thành công!");
+    } else {
+      const data = await res.json();
+      alert(`❌ Lỗi: ${data.error}`);
+    }
+    setSaving(false);
+  };
+
+  const handleSaveDraft = async () => {
+    setSaving(true);
+    const res = await fetch(`/api/subdomains/${subdomainId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html_content: code }),
+    });
+    if (res.ok) {
+      setLastSaved("Đã lưu " + new Date().toLocaleTimeString("vi-VN"));
+    }
+    setSaving(false);
   };
 
   const handleImport = () => {
@@ -137,10 +183,10 @@ export default function EditorPage() {
           <button className="editor-btn editor-btn--preview" onClick={() => setViewMode("preview")}>
             👁 Preview
           </button>
-          <button className="editor-btn editor-btn--import" onClick={handleImport}>
-            📥 Nhập
+          <button className="editor-btn editor-btn--import" onClick={handleSaveDraft} disabled={saving}>
+            💾 Lưu nháp
           </button>
-          <button className="editor-btn editor-btn--publish" onClick={handlePublish}>
+          <button className="editor-btn editor-btn--publish" onClick={handlePublish} disabled={saving}>
             🚀 Publish
           </button>
         </div>

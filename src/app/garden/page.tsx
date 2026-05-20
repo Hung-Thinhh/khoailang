@@ -3,48 +3,75 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import PlantModal from "@/components/PlantModal";
+import { getUser, signOut, signInWithGoogle } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 interface SubdomainEntry {
   id: number;
   name: string;
-  domain: string;
-  ip: string;
-  type: string;
-  category: string;
-  shared: boolean;
-  updatedAt: string;
+  hosting_type: string;
+  ip_address: string | null;
+  status: string;
+  dns_status: string;
+  is_shared: boolean;
+  template_id: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-const MOCK_DATA: SubdomainEntry[] = [
-  {
-    id: 1,
-    name: "myass1",
-    domain: ".khoai.to",
-    ip: "45.77.246.20",
-    type: "Preview",
-    category: "Trang HTML",
-    shared: false,
-    updatedAt: "18/05/2026",
-  },
-];
+interface ProfileData {
+  max_subdomains: number;
+  credits: number;
+}
 
 export default function GardenPage() {
-  const [subdomains] = useState<SubdomainEntry[]>(MOCK_DATA);
+  const [subdomains, setSubdomains] = useState<SubdomainEntry[]>([]);
+  const [profile, setProfile] = useState<ProfileData>({ max_subdomains: 1, credits: 0 });
   const [showPlantModal, setShowPlantModal] = useState(false);
+  const [userName, setUserName] = useState("Người dùng");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Hide global header and footer on dashboard page
+    // Hide global header and footer
     const header = document.getElementById("header");
     const footer = document.querySelector("footer.footer");
     if (header) header.style.display = "none";
     if (footer) (footer as HTMLElement).style.display = "none";
+
+    // Check auth and load data
+    getUser().then(async user => {
+      if (!user) {
+        signInWithGoogle();
+      } else {
+        setUserName(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Người dùng");
+        
+        // Load profile
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("max_subdomains, credits")
+          .eq("id", user.id)
+          .single();
+        if (profileData) setProfile(profileData);
+
+        // Load subdomains
+        const { data: subData } = await supabase
+          .from("subdomains")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (subData) setSubdomains(subData);
+        
+        setLoading(false);
+      }
+    });
+
     return () => {
       if (header) header.style.display = "";
       if (footer) (footer as HTMLElement).style.display = "";
     };
   }, []);
 
-  const totalSlots = 1;
+  const totalSlots = profile.max_subdomains;
   const usedSlots = subdomains.length;
   const freeSlots = totalSlots - usedSlots;
 
@@ -61,10 +88,10 @@ export default function GardenPage() {
           </div>
           <div className="dashboard-nav-right">
             <div className="dashboard-user">
-              <span className="dashboard-avatar">H</span>
-              <span>Hung Thinh Nguyễn</span>
+              <span className="dashboard-avatar">{userName.charAt(0).toUpperCase()}</span>
+              <span>{userName}</span>
             </div>
-            <button className="dashboard-logout">Đăng xuất</button>
+            <button className="dashboard-logout" onClick={() => signOut()}>Đăng xuất</button>
           </div>
         </div>
       </div>
@@ -88,7 +115,7 @@ export default function GardenPage() {
           </div>
           <div className="stat-card stat-card--yellow">
             <div className="stat-label">💎 CREDITS CÒN LẠI</div>
-            <div className="stat-value">0</div>
+            <div className="stat-value">{profile.credits}</div>
             <div className="stat-sub">Đã dùng: 0 credits</div>
           </div>
           <div className="stat-card stat-card--blue">
@@ -138,28 +165,57 @@ export default function GardenPage() {
                 <tr key={item.id}>
                   <td>{item.id}</td>
                   <td className="td-subdomain">
-                    <span className="subdomain-status">🟢</span>
-                    <strong>{item.name}</strong>{item.domain}
-                    <span className="subdomain-icons">📋 🔗 👁 {item.type}</span>
+                    <span className="subdomain-status">{item.dns_status === "active" ? "🟢" : "🟡"}</span>
+                    <strong>{item.name}</strong>.khoai.to
+                    <span className="subdomain-icons">
+                      <a href={`/s/${item.name}`} target="_blank" rel="noopener noreferrer" className="preview-link">
+                        {item.hosting_type === "html" ? "👁 Preview" : "🔗 IP"}
+                      </a>
+                    </span>
                   </td>
-                  <td><code className="ip-badge">{item.ip}</code></td>
+                  <td><code className="ip-badge">{item.ip_address || "—"}</code></td>
                   <td>
                     <span className="badge badge--free">🔓 Miễn phí</span>
-                    <span className="badge badge--html">🌐 {item.category}</span>
+                    <span className="badge badge--html">
+                      {item.hosting_type === "html" ? "🌐 Trang HTML" : "🔗 Trỏ IP"}
+                    </span>
                   </td>
                   <td>
                     <label className="toggle">
-                      <input type="checkbox" checked={item.shared} readOnly />
+                      <input
+                        type="checkbox"
+                        checked={item.is_shared}
+                        onChange={async () => {
+                          await supabase.from("subdomains").update({ is_shared: !item.is_shared }).eq("id", item.id);
+                          setSubdomains(prev => prev.map(s => s.id === item.id ? { ...s, is_shared: !s.is_shared } : s));
+                        }}
+                      />
                       <span className="toggle-slider"></span>
                     </label>
                   </td>
-                  <td>{item.updatedAt}</td>
+                  <td>{new Date(item.updated_at).toLocaleDateString("vi-VN")}</td>
                   <td className="td-actions">
-                    <Link href={`/dashboard/editor/${item.id}`} className="action-btn action-btn--edit">✏️ Chỉnh sửa trang</Link>
-                    <button className="action-btn action-btn--delete">🗑️ Xóa</button>
+                    {item.hosting_type === "html" && (
+                      <Link href={`/dashboard/editor/${item.template_id || item.id}`} className="action-btn action-btn--edit">✏️ Chỉnh sửa trang</Link>
+                    )}
+                    <button
+                      className="action-btn action-btn--delete"
+                      onClick={async () => {
+                        if (!confirm(`Xóa ${item.name}.khoai.to?`)) return;
+                        await supabase.from("subdomains").delete().eq("id", item.id);
+                        setSubdomains(prev => prev.filter(s => s.id !== item.id));
+                      }}
+                    >🗑️ Xóa</button>
                   </td>
                 </tr>
               ))}
+              {subdomains.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                    Chưa có subdomain nào. Nhấn &quot;Trồng thêm&quot; để bắt đầu!
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

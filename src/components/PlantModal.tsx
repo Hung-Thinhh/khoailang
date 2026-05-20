@@ -65,17 +65,44 @@ export default function PlantModal({ onClose }: PlantModalProps) {
     ? TEMPLATES
     : TEMPLATES.filter(t => t.category === activeCategory);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (hostingType === "ip") {
-      alert(`✅ Đã trồng thành công!\n\n${subdomain}.khoai.to → ${ipAddress}\n\nDNS sẽ cập nhật trong 1-5 phút.`);
-      onClose();
+      // Create subdomain with IP
+      const res = await fetch("/api/subdomains", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: subdomain, hosting_type: "ip", ip_address: ipAddress }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ Đã trồng thành công!\n\n${subdomain}.khoai.to → ${ipAddress}`);
+        onClose();
+        window.location.reload();
+      } else {
+        alert(`❌ Lỗi: ${data.error}`);
+      }
     } else {
-      // Save selected template ID to localStorage and navigate to editor
-      if (selectedTemplate) {
-        localStorage.setItem("editor_template_id", String(selectedTemplate));
+      // Create subdomain with HTML template
+      if (!selectedTemplate) return;
+      const templateHtml = TEMPLATE_HTML[selectedTemplate] || "";
+      const res = await fetch("/api/subdomains", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: subdomain,
+          hosting_type: "html",
+          template_id: selectedTemplate,
+          html_content: templateHtml,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Navigate to editor with the new subdomain ID
         localStorage.setItem("editor_subdomain", subdomain);
         onClose();
-        router.push(`/dashboard/editor/${selectedTemplate}`);
+        router.push(`/dashboard/editor/${data.id}`);
+      } else {
+        alert(`❌ Lỗi: ${data.error}`);
       }
     }
   };

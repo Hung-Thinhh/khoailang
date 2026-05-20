@@ -2,18 +2,39 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { signInWithGoogle, getSession, isAdmin } from "@/lib/auth";
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 30);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Check auth + admin
+    getSession().then(session => {
+      setIsLoggedIn(!!session);
+      if (session) {
+        isAdmin().then(admin => setShowAdmin(admin));
+      }
+    });
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  const handleDashboardClick = async () => {
+    setIsMenuOpen(false);
+    if (isLoggedIn) {
+      window.location.href = "/garden";
+    } else {
+      await signInWithGoogle();
+    }
+  };
 
   return (
     <header className={`header ${isScrolled ? "scrolled" : ""}`} id="header">
@@ -35,9 +56,14 @@ export default function Header() {
           <Link href="/garden" className="nav-link" onClick={() => setIsMenuOpen(false)}>
             🌾 Vườn khoai
           </Link>
-          <Link href="/garden" className="nav-cta" onClick={() => setIsMenuOpen(false)}>
+          {showAdmin && (
+            <Link href="/admin" className="nav-link" onClick={() => setIsMenuOpen(false)}>
+              🔒 Admin
+            </Link>
+          )}
+          <button className="nav-cta" onClick={handleDashboardClick}>
             🌱 Dashboard
-          </Link>
+          </button>
         </nav>
         <button
           className="mobile-menu-btn block md:hidden"

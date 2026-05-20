@@ -1,6 +1,7 @@
 import PromoBanner from "@/components/PromoBanner";
 import FloatingEmojis from "@/components/FloatingEmojis";
 import Potato3D from "@/components/Potato3D";
+import LoginButton from "@/components/LoginButton";
 import Link from "next/link";
 
 export default function Home() {
@@ -24,9 +25,9 @@ export default function Home() {
             Miễn phí, nhanh chóng, bảo mật.
           </p>
           <div className="hero-buttons">
-            <Link href="/garden" className="btn-primary">
+            <LoginButton className="btn-primary">
               🌱 Bắt đầu trồng ngay
-            </Link>
+            </LoginButton>
             <Link href="#features" className="btn-outline">
               Xem tính năng ↓
             </Link>
@@ -76,9 +77,9 @@ export default function Home() {
         <div className="cta-card">
           <h2>🥔 Hãy bắt đầu trồng khoai<br />ngay hôm nay!</h2>
           <p>Chỉ cần một tài khoản Google, bạn đã sẵn sàng sở hữu subdomain riêng.</p>
-          <a href="/garden" className="btn-golden">
+          <LoginButton className="btn-golden">
             🌱 Bắt đầu miễn phí
-          </a>
+          </LoginButton>
           <div className="cta-tags">
             <span className="cta-tag">Miễn phí</span>
             <span className="cta-tag">Không cần thẻ tín dụng</span>
