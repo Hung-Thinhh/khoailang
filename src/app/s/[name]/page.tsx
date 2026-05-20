@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
+export const dynamicParams = true;
+
+export function generateStaticParams() {
+  return [];
+}
 
 export default async function SubdomainPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
