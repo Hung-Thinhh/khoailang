@@ -1,19 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 
-// Server component - no "use client"
-// Use service-level client that bypasses RLS for public subdomain serving
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 export const dynamic = "force-dynamic";
 
 export default async function SubdomainPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
 
-  // Query subdomain - use .maybeSingle() to avoid throwing on no results
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return <div>Configuration error</div>;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   const { data: subdomain, error } = await supabase
     .from("subdomains")
     .select("*")
@@ -24,7 +25,6 @@ export default async function SubdomainPage({ params }: { params: Promise<{ name
     console.error("Subdomain query error:", error);
   }
 
-  // Not found
   if (!subdomain) {
     notFound();
   }
